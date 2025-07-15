@@ -102,7 +102,8 @@ int main(const int argc, const char* argv[]) {
     }
 
     char recvBuf[200];
-    while (recvBuf != "q") {
+    bool quit = false;
+    while (!quit) {
         
 
         int byteCount = recv(acceptSocket, recvBuf, 200, 0);
@@ -112,6 +113,10 @@ int main(const int argc, const char* argv[]) {
         }
         else {
             WSACleanup();
+        }
+
+        if (recvBuf[0] == '/' && recvBuf[1] == 'q') {
+            quit = true;
         }
 
         char retMsg[400] = "SERVER: RECIEVED MSG \n";
@@ -124,6 +129,7 @@ int main(const int argc, const char* argv[]) {
         }
     
     }
+
     
     // Close ts at the end.
     SetConsoleTextAttribute(hConsole, SUCCESS_COLOR);
