@@ -4,7 +4,6 @@
 
 #pragma comment(lib, "ws2_32.lib")
 #include <iostream>
-#include <tchar.h>
 #include <WinSock2.h>
 #include <process.h>
 #include <WS2tcpip.h>
@@ -14,7 +13,8 @@
 
 
 #define PORT 8080
-
+#define ADDRESS "127.0.0.1"
+#define MAX_CLIENTS 20
 
 
 
@@ -70,7 +70,8 @@ int main(const int argc, const char* argv[]) {
     // Binding the socket
     sockaddr_in service;
     service.sin_family = AF_INET;
-    InetPton(AF_INET, _T("127.0.0.1"), &service.sin_addr.s_addr);
+    PCWSTR addr = TEXT(ADDRESS);
+    InetPton(AF_INET, addr, &service.sin_addr.s_addr);
     service.sin_port = htons(port);
     if (bind(serverSocket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR) {
         SetConsoleTextAttribute(hConsole, ERROR_COLOR);
@@ -82,6 +83,8 @@ int main(const int argc, const char* argv[]) {
         SetConsoleTextAttribute(hConsole, SUCCESS_COLOR);
         std::cout << "BIND IS GOOD!\n";
     }
+
+
 
     if (listen(serverSocket, 1) == SOCKET_ERROR) {
         SetConsoleTextAttribute(hConsole, ERROR_COLOR);
@@ -99,7 +102,7 @@ int main(const int argc, const char* argv[]) {
     }
 
     char recvBuf[200];
-    while (recvBuf != "COMMAND-EXIT") {
+    while (recvBuf != "q") {
         
 
         int byteCount = recv(acceptSocket, recvBuf, 200, 0);
@@ -110,8 +113,18 @@ int main(const int argc, const char* argv[]) {
         else {
             WSACleanup();
         }
-    }
 
+        char retMsg[400] = "SERVER: RECIEVED MSG \n";
+        byteCount = send(acceptSocket, retMsg, 400, 0);
+        if (byteCount > 0) {
+            std::cout << "Message sent: " << retMsg << "\n";
+        }
+        else {
+            WSACleanup();
+        }
+    
+    }
+    
     // Close ts at the end.
     SetConsoleTextAttribute(hConsole, SUCCESS_COLOR);
     system("pause");
