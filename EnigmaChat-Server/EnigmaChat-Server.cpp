@@ -6,6 +6,7 @@
 #include <iostream>
 #include <tchar.h>
 #include <WinSock2.h>
+#include <process.h>
 #include <WS2tcpip.h>
 #include <windows.h>
 #include <stdio.h>
@@ -97,13 +98,24 @@ int main(const int argc, const char* argv[]) {
         std::cout << "ACCEPT FAILED: " << WSAGetLastError() << "\n";
     }
 
+    char recvBuf[200];
+    while (recvBuf != "COMMAND-EXIT") {
+        
+
+        int byteCount = recv(acceptSocket, recvBuf, 200, 0);
+        if (byteCount > 0) {
+            SetConsoleTextAttribute(hConsole, bgColor | FOREGROUND_BLUE);
+            std::cout << "SERVER STATUS: MESSAGE RECIEVED:" << recvBuf << "\n";
+        }
+        else {
+            WSACleanup();
+        }
+    }
+
+    // Close ts at the end.
     SetConsoleTextAttribute(hConsole, SUCCESS_COLOR);
     system("pause");
     WSACleanup();
-
-
-
-
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
     ExitProcess(EXIT_SUCCESS);
 }
