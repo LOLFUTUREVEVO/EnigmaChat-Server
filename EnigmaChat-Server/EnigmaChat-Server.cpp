@@ -19,12 +19,10 @@
 #define PORT 8080
 #define INVALID_SOCK_READ 500
 #define ADDRESS L"127.0.0.1"
-#define MAX_CLIENTS 20
 
 
 
 int findFirstInstanceOfInvalid(SOCKET conClients[]);
-void clientListener(SOCKET conClients[], SOCKET servSocket, HANDLE console, WORD sColor, WORD fColor);
 
 
 int main(const int argc, const char* argv[]) {
@@ -92,24 +90,6 @@ int main(const int argc, const char* argv[]) {
        
 
 
-   
-
-    /*
-    if (listen(serverSocket, 1) == SOCKET_ERROR) {
-        SetConsoleTextAttribute(hConsole, ERROR_COLOR);
-        std::cout << "ERROR LISTENING TO SOCKET: " << WSAGetLastError() << "\n";
-    }
-    else {
-        SetConsoleTextAttribute(hConsole, SUCCESS_COLOR);
-        std::cout << "SOCKET LISTENING " << "\n";
-    }
-
-    acceptSocket = accept(serverSocket, NULL, NULL);
-    if (acceptSocket == INVALID_SOCKET) {
-        SetConsoleTextAttribute(hConsole, ERROR_COLOR);
-        std::cout << "ACCEPT FAILED: " << WSAGetLastError() << "\n";
-    }
-    */
 
 
     listen(serverSocket, SOMAXCONN); // seperate thread????
@@ -119,6 +99,7 @@ int main(const int argc, const char* argv[]) {
 
     char recvBuf[200];
     bool quit = false;
+
 
     FD_SET(serverSocket, &master);
 
@@ -136,7 +117,9 @@ int main(const int argc, const char* argv[]) {
             if (sock == serverSocket) {
 
                 SOCKET client = accept(serverSocket, NULL, NULL);
-                std::cout << "NEW CLIENT ACCEPTED: " << client << "\n";
+                char userName[4096];
+                recv(client, userName, 4096, 0);
+                std::cout << "NEW CLIENT ACCEPTED: " << userName << "\n";
                 FD_SET(client, &master);
             } else {
                 char incoming[4096];
@@ -144,6 +127,7 @@ int main(const int argc, const char* argv[]) {
 
                 int bytesIn = recv(sock, incoming, 4096, 0);
                 if (bytesIn <= 0) {
+                    std::cout << "SOCKET#:" << sock << " HAS DISCONNECTED\n";
                     closesocket(sock);
                     FD_CLR(sock, &master);
                 }
@@ -151,7 +135,7 @@ int main(const int argc, const char* argv[]) {
                     
                     for (int i = 0; i < master.fd_count; i++) {
                         SOCKET outSock = master.fd_array[i];
-                        if (outSock != serverSocket && outSock != sock) {
+                        if (outSock != serverSocket && outSock != sock && i <= 4096) {
                             std::ostringstream oStream;
                             oStream << "USER# " << sock << ": " << incoming << "\n";
 
@@ -163,31 +147,7 @@ int main(const int argc, const char* argv[]) {
         }
 
 
-        /*
-        int byteCount = recv(acceptSocket, recvBuf, 200, 0);
-        if (byteCount > 0) {
-            SetConsoleTextAttribute(hConsole, bgColor | FOREGROUND_BLUE);
-            std::cout << "SERVER STATUS: MESSAGE RECIEVED:" << recvBuf << "\n" << "BYTECOUNT: " << byteCount << "\n";
-        }
-        else {
-            std::cout << "BYTECOUNT IS ZERO CONN CLOSED...\n";
-            WSACleanup();
-        }
-
-        if (recvBuf[0] == '/' && recvBuf[1] == 'q') {
-            quit = true;
-        }
-
-        char retMsg[400] = "SERVER: RECIEVED MSG:";
-        std::strcat(retMsg, recvBuf);
-        byteCount = send(acceptSocket, retMsg, 400, 0);
-        if (byteCount > 0) {
-            std::cout << "Message sent: " << retMsg << "\n";
-        }
-        else {
-            WSACleanup();
-        }
-        */
+        
     }
 
     
@@ -199,49 +159,3 @@ int main(const int argc, const char* argv[]) {
     ExitProcess(EXIT_SUCCESS);
 }
 
-
-
-int findFirstInstanceOfInvalid(SOCKET conClients[]) {
-    for (int i = 0; i < MAX_CLIENTS - 1; i++) {
-        if (conClients[i] == INVALID_SOCKET) {
-            return i;
-        }
-        else {
-            continue;
-        }
-    }
-    return MAX_CLIENTS;
-} 
-
-
-
-
-void clientListener(SOCKET conClients[MAX_CLIENTS], SOCKET servSocket,HANDLE console , WORD sColor, WORD fColor) {
-
-    // TODO: Handle server being full and rejecting connections.
-    // Temporary, include logic for handling disconnections after the server is "full" will be added after this test works.
-    while (conClients[MAX_CLIENTS - 1] == INVALID_SOCKET) {
-
-        std::cout << "LISTENING FOR CLIENTS\n";
-        if (listen(servSocket, SOMAXCONN) == SOCKET_ERROR) {
-            SetConsoleTextAttribute(console, fColor);
-            std::cout << "ERROR LISTENING TO SOCKET: " << WSAGetLastError() << "\n";
-        }
-        else {
-            SetConsoleTextAttribute(console, sColor);
-            std::cout << "SOCKET LISTENING " << "\n";
-        }
-
-        // Include the client into our client list.
-        int indexOfInvalid = findFirstInstanceOfInvalid(conClients);
-        if (indexOfInvalid == MAX_CLIENTS) {
-
-        }
-        else {
-            conClients[indexOfInvalid] = accept(servSocket, NULL, NULL);
-        }
-        
-
-
-    }
-}
