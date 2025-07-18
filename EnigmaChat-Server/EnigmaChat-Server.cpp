@@ -5,6 +5,7 @@
 
 #pragma comment(lib, "ws2_32.lib")
 #include <iostream>
+#include <sstream>
 #include <thread>
 #include <string.h>
 #include <WinSock2.h>
@@ -89,7 +90,6 @@ int main(const int argc, const char* argv[]) {
     }
 
        
-    SOCKET clientList[MAX_CLIENTS] = {INVALID_SOCKET}; // will hold all of the clients, basically the accept client
 
 
    
@@ -104,9 +104,6 @@ int main(const int argc, const char* argv[]) {
         std::cout << "SOCKET LISTENING " << "\n";
     }
 
-
-
-
     acceptSocket = accept(serverSocket, NULL, NULL);
     if (acceptSocket == INVALID_SOCKET) {
         SetConsoleTextAttribute(hConsole, ERROR_COLOR);
@@ -115,19 +112,55 @@ int main(const int argc, const char* argv[]) {
     */
 
 
-    std::thread t1(clientListener, clientList, serverSocket, hConsole,SUCCESS_COLOR, ERROR_COLOR);
-    t1.detach();
+    listen(serverSocket, SOMAXCONN); // seperate thread????
+
+    fd_set master;
+    FD_ZERO(&master);
+
     char recvBuf[200];
     bool quit = false;
+
+    FD_SET(serverSocket, &master);
+
     while (!quit) {
-        int indexOfFirstInvalid = findFirstInstanceOfInvalid(clientList);
-        // Here is where we'll handle taking messages to each client and other clerical functions, so both threads handling the client list, will need to be paused.
-        for (int i = 0; i < indexOfFirstInvalid - 1; i++) {
-            if (clientList[i] != INVALID_SOCKET) {
-                std::cout << "USER (" << i << "): DEFINED\n";
+
+
+        fd_set copy = master;
+
+        int sockCount = select(0, &copy, NULL, NULL, NULL);
+
+        for(int i = 0; i < sockCount; i++) {
+            
+            SOCKET sock = copy.fd_array[i];
+
+            if (sock == serverSocket) {
+
+                SOCKET client = accept(serverSocket, NULL, NULL);
+                std::cout << "NEW CLIENT ACCEPTED: " << client << "\n";
+                FD_SET(client, &master);
+            } else {
+                char incoming[4096];
+                ZeroMemory(incoming, 4096);
+
+                int bytesIn = recv(sock, incoming, 4096, 0);
+                if (bytesIn <= 0) {
+                    closesocket(sock);
+                    FD_CLR(sock, &master);
+                }
+                else {
+                    
+                    for (int i = 0; i < master.fd_count; i++) {
+                        SOCKET outSock = master.fd_array[i];
+                        if (outSock != serverSocket && outSock != sock) {
+                            std::ostringstream oStream;
+                            oStream << "USER# " << sock << ": " << incoming << "\n";
+
+                            send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
+                        }
+                    }
+                }
             }
         }
-        
 
 
         /*
