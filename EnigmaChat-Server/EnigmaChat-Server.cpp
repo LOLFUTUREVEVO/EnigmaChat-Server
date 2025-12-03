@@ -6,7 +6,6 @@
 #pragma comment(lib, "ws2_32.lib")
 #include <iostream>
 #include <sstream>
-#include <thread>
 #include <string.h>
 #include <WinSock2.h>
 #include <process.h>
@@ -14,18 +13,25 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <map>
+#include "User.h"
+
 
 
 #define PORT 8080
 #define INVALID_SOCK_READ 500
 #define ADDRESS L"127.0.0.1"
 
-
+typedef struct {
+    int sockCon;
+    char* name;
+} userStruct;
 
 int findFirstInstanceOfInvalid(SOCKET conClients[]);
 
 
 int main(const int argc, const char* argv[]) {
+
     std::cout << "Start Program\n";
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
@@ -35,7 +41,7 @@ int main(const int argc, const char* argv[]) {
     WORD ERROR_COLOR = FOREGROUND_RED | bgColor;
     WORD SUCCESS_COLOR = FOREGROUND_GREEN | bgColor;
 
-
+    userStruct conUsers[1000] = { 0 };
 
     // WSA setup
     SOCKET serverSocket, acceptSocket;
@@ -94,7 +100,7 @@ int main(const int argc, const char* argv[]) {
 
     listen(serverSocket, SOMAXCONN); // seperate thread????
 
-    fd_set master;
+    fd_set master; 
     FD_ZERO(&master);
 
     char recvBuf[200];
@@ -116,10 +122,33 @@ int main(const int argc, const char* argv[]) {
 
             if (sock == serverSocket) {
 
-                SOCKET client = accept(serverSocket, NULL, NULL);
-                char userName[4096];
-                recv(client, userName, 4096, 0);
-                std::cout << "NEW CLIENT ACCEPTED: " << userName << "\n";
+                SOCKET client = accept(serverSocket, NULL, NULL); // accepts a new connection.
+
+
+                char inStream[4096]; // What gets read from the input. -> A CString, but we can convert it to something else.
+                recv(client, inStream, 4096, 0);
+                char userName[50] = { 0 };
+                std::cout << "PREREAD: " << userName << "\n";
+                for (int i = 0; i < sizeof(inStream) / sizeof(inStream[0]); i++) {
+                    if ((int)inStream[i] == 127) {
+                        strncpy(userName, inStream, i);
+                    }
+                }
+
+                std::cout << "SOCKET CONNECTED: " << client << "\n";
+                std::cout << "NEW CLIENT ACCEPTED, INPUT STREAM: " << userName << "\n";
+                for (int i = 0; i < sizeof(conUsers) / sizeof(conUsers[0]); i++) {
+                    if (conUsers[i].name == NULL) {
+                        userStruct a = {(int)client, userName};
+                        conUsers[i] = a;
+                        i = sizeof(conUsers) / sizeof(conUsers[0]);
+                    }
+                }
+                for (int i = 0; i < sizeof(conUsers) / sizeof(conUsers[0]); i++) {
+                    if (conUsers[i].name != NULL) {
+                        std::cout << "User# " << i << ": " << conUsers[i].name << ", SOCK#: " << conUsers[i].sockCon << "\n";
+                    }
+                }
                 FD_SET(client, &master);
             } else {
                 char incoming[4096];
@@ -127,17 +156,19 @@ int main(const int argc, const char* argv[]) {
 
                 int bytesIn = recv(sock, incoming, 4096, 0);
                 if (bytesIn <= 0) {
-                    std::cout << "SOCKET#:" << sock << " HAS DISCONNECTED\n";
+                    std::cout << "SOCKET#: " << (int)sock << "\n";
+                    std::cout << "User: " << sock << " HAS DISCONNECTED\n";
                     closesocket(sock);
                     FD_CLR(sock, &master);
                 }
                 else {
-                    
+                    // This is where data is sent back.
                     for (int i = 0; i < master.fd_count; i++) {
                         SOCKET outSock = master.fd_array[i];
                         if (outSock != serverSocket && outSock != sock && i <= 4096) {
                             std::ostringstream oStream;
-                            oStream << "USER# " << sock << ": " << incoming << "\n";
+                            std::cout << "MSG SENT BY: " << (int)sock << "\n";
+                            oStream << sock << ": " << incoming << "\n";
 
                             send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
                         }
