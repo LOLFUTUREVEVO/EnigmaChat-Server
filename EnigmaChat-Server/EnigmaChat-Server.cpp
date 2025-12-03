@@ -41,7 +41,7 @@ int main(const int argc, const char* argv[]) {
     WORD ERROR_COLOR = FOREGROUND_RED | bgColor;
     WORD SUCCESS_COLOR = FOREGROUND_GREEN | bgColor;
 
-    userStruct conUsers[1000] = { 0 };
+    userStruct conUsers[1000] = { 0, NULL };
 
     // WSA setup
     SOCKET serverSocket, acceptSocket;
@@ -129,24 +129,27 @@ int main(const int argc, const char* argv[]) {
                 recv(client, inStream, 4096, 0);
                 char userName[50] = { 0 };
                 std::cout << "PREREAD: " << userName << "\n";
-                for (int i = 0; i < sizeof(inStream) / sizeof(inStream[0]); i++) {
-                    if ((int)inStream[i] == 127) {
-                        strncpy(userName, inStream, i);
+                for (int j = 0; j < sizeof(inStream) / sizeof(inStream[0]); j++) {
+                    if ((int)inStream[j] == 127) {
+                        strncpy(userName, inStream, j);
                     }
                 }
 
                 std::cout << "SOCKET CONNECTED: " << client << "\n";
                 std::cout << "NEW CLIENT ACCEPTED, INPUT STREAM: " << userName << "\n";
-                for (int i = 0; i < sizeof(conUsers) / sizeof(conUsers[0]); i++) {
-                    if (conUsers[i].name == NULL) {
-                        userStruct a = {(int)client, userName};
-                        conUsers[i] = a;
-                        i = sizeof(conUsers) / sizeof(conUsers[0]);
+                for (int j = 0; j < sizeof(conUsers) / sizeof(conUsers[0]); j++) {
+                    if (conUsers[j].name == NULL) {
+                        std::cout << "ADDED SOCK: " << client << " as USER: "<< userName << "\n";
+                        char* test = (char*)malloc(10 * sizeof(userName));
+                        strncpy(test, userName, 50); // Make sure that issue is fixed.(BE MEMORY SAFE GNG)
+                        userStruct a = {(int)client, test};
+                        conUsers[j] = a;
+                        j = sizeof(conUsers) / sizeof(conUsers[0]);
                     }
                 }
-                for (int i = 0; i < sizeof(conUsers) / sizeof(conUsers[0]); i++) {
-                    if (conUsers[i].name != NULL) {
-                        std::cout << "User# " << i << ": " << conUsers[i].name << ", SOCK#: " << conUsers[i].sockCon << "\n";
+                for (int j = 0; j < sizeof(conUsers) / sizeof(conUsers[0]); j++) {
+                    if (conUsers[i].name != NULL && conUsers[j].sockCon) {
+                        std::cout << "User# " << j << ": " << conUsers[j].name << ", SOCK#: " << conUsers[j].sockCon << "\n";
                     }
                 }
                 FD_SET(client, &master);
@@ -158,6 +161,13 @@ int main(const int argc, const char* argv[]) {
                 if (bytesIn <= 0) {
                     std::cout << "SOCKET#: " << (int)sock << "\n";
                     std::cout << "User: " << sock << " HAS DISCONNECTED\n";
+                    for (int j = 0; j < sizeof(conUsers) / sizeof(conUsers[0]); j++) {
+                        if ((int)sock == conUsers[j].sockCon) {
+                            conUsers[j] = { 0, NULL };
+                        }
+                    }
+
+
                     closesocket(sock);
                     FD_CLR(sock, &master);
                 }
@@ -168,7 +178,11 @@ int main(const int argc, const char* argv[]) {
                         if (outSock != serverSocket && outSock != sock && i <= 4096) {
                             std::ostringstream oStream;
                             std::cout << "MSG SENT BY: " << (int)sock << "\n";
-                            oStream << sock << ": " << incoming << "\n";
+                            for (userStruct u : conUsers) {
+                                if ((int)sock == u.sockCon) {
+                                    oStream << u.name << ": " << incoming << "\n";
+                                }
+                            }
 
                             send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
                         }
