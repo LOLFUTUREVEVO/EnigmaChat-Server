@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
+#include <vector>
 #include "User.h"
 
 
@@ -32,6 +33,7 @@ int findFirstInstanceOfInvalid(SOCKET conClients[]);
 
 int main(const int argc, const char* argv[]) {
 
+    std::vector<std::string> messageHist;
     std::cout << "Start Program\n";
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
@@ -126,14 +128,21 @@ int main(const int argc, const char* argv[]) {
 
 
                 char inStream[4096]; // What gets read from the input. -> A CString, but we can convert it to something else.
-                recv(client, inStream, 4096, 0);
+                recv(client, inStream, 4096, 0); // Recieve client info.s
+                for (std::string s : messageHist) {
+                    send(client, s.c_str(), 4096, 0);
+                }
                 char userName[50] = { 0 };
+                int locationOfUser = 0;
                 std::cout << "PREREAD: " << userName << "\n";
                 for (int j = 0; j < sizeof(inStream) / sizeof(inStream[0]); j++) {
                     if ((int)inStream[j] == 127) {
                         strncpy(userName, inStream, j);
                     }
                 }
+                
+
+
 
                 std::cout << "SOCKET CONNECTED: " << client << "\n";
                 std::cout << "NEW CLIENT ACCEPTED, INPUT STREAM: " << userName << "\n";
@@ -152,39 +161,65 @@ int main(const int argc, const char* argv[]) {
                         std::cout << "User# " << j << ": " << conUsers[j].name << ", SOCK#: " << conUsers[j].sockCon << "\n";
                     }
                 }
+                // Sends that a user has connected..
+                std::ostringstream oStream;
+                oStream << "User: <" << userName << "> has connected.\n";
+                for (int i = 0; i < master.fd_count; i++) {
+                    SOCKET outSock = master.fd_array[i];
+                    if (outSock != serverSocket && outSock != sock && i <= 4096) {
+                        send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
+                    }
+                }
+                messageHist.push_back(oStream.str());
+
                 FD_SET(client, &master);
             } else {
                 char incoming[4096];
                 ZeroMemory(incoming, 4096);
 
                 int bytesIn = recv(sock, incoming, 4096, 0);
+                std::cout << "UNBLOCKED!!!!\n";
                 if (bytesIn <= 0) {
                     std::cout << "SOCKET#: " << (int)sock << "\n";
                     std::cout << "User: " << sock << " HAS DISCONNECTED\n";
+                    int locationOfUser = 0;
                     for (int j = 0; j < sizeof(conUsers) / sizeof(conUsers[0]); j++) {
                         if ((int)sock == conUsers[j].sockCon) {
-                            conUsers[j] = { 0, NULL };
+                            locationOfUser = j;
                         }
                     }
 
+                    // Send that the user has disconnected..
+                    std::ostringstream oStream;
+                    oStream << "User: <" << conUsers[locationOfUser].name << "> has disconnected.\n";
+                    for (int i = 0; i < master.fd_count; i++) {
+                        SOCKET outSock = master.fd_array[i];
+                        if (outSock != serverSocket && outSock != sock && i <= 4096) {
+                            send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
+                        }
+                    }
+                    messageHist.push_back(oStream.str());
 
+                    conUsers[locationOfUser] = { 0, NULL };
                     closesocket(sock);
                     FD_CLR(sock, &master);
                 }
                 else {
-                    // This is where data is sent back.
-                    for (int i = 0; i < master.fd_count; i++) {
-                        SOCKET outSock = master.fd_array[i];
-                        if (outSock != serverSocket && outSock != sock && i <= 4096) {
-                            std::ostringstream oStream;
-                            std::cout << "MSG SENT BY: " << (int)sock << "\n";
-                            for (userStruct u : conUsers) {
-                                if ((int)sock == u.sockCon) {
-                                    oStream << u.name << ": " << incoming << "\n";
-                                }
+                    if(incoming[0] != 0) {
+                        // This is where data is sent back. -> Now in linear time instead of O(n^2)
+                        std::ostringstream oStream;
+                        for (userStruct u : conUsers) {
+                            if ((int)sock == u.sockCon) {
+                                oStream << u.name << ": " << incoming << "\n";
                             }
-
-                            send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
+                        }
+                        messageHist.push_back(oStream.str());
+                        for (int i = 0; i < master.fd_count; i++) {
+                            SOCKET outSock = master.fd_array[i];
+                            if (outSock != serverSocket && outSock != sock && i <= 4096) {
+                                std::cout << "MSG SENT BY: " << (int)sock << "\n";
+                                send(outSock, oStream.str().c_str(), oStream.str().size() + 1, 0);
+                            }
                         }
                     }
                 }
